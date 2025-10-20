@@ -1,0 +1,101 @@
+services:
+  # === TIER 0: INGRESS REVERSE PROXY ===
+  nginx-proxy:
+    build: ./nginx-proxy
+    container_name: nginx-proxy
+    # This is now the main application entrypoint on the host.
+    ports:
+      - "80:80"
+    networks:
+      - app-network
+    # Ensures at least one HAProxy instance is healthy before NGINX starts.
+    # This prevents NGINX from failing if it starts before the VIP is available.
+    depends_on:
+      haproxy-master: { condition: service_healthy }
+      haproxy-backup-1: { condition: service_healthy }
+      haproxy-backup-2: { condition: service_healthy }
+
+  # === TIER 1: WEB SERVERS ===
+  web1:
+    build: ./web-servers
+    container_name: web1
+    hostname: web1
+    networks:
+      - app-network
+
+  web2:
+    build: ./web-servers
+    container_name: web2
+    hostname: web2
+    networks:
+      - app-network
+  # === TIER 2: HIGH-AVAILABILITY LOAD BALANCERS ===
+  haproxy-master:
+    build:
+      context: ./haproxy-cluster # Use the consolidated build context
+      args:
+        KEEPALIVED_CONFIG: keepalived.master.conf # Pass the master config file name
+    container_name: haproxy-master
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    networks:
+      - app-network
+    depends_on:
+      web1: { condition: service_started }
+      web2: { condition: service_started }
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost/haproxy?stats" ]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+
+  haproxy-backup-1:
+    build:
+      context: ./haproxy-cluster # Use the consolidated build context
+      args:
+        KEEPALIVED_CONFIG: keepalived.backup1.conf # Pass the backup config file name
+    container_name: haproxy-backup-1
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    networks:
+      - app-network
+    depends_on:
+      web1: { condition: service_started }
+      web2: { condition: service_started }
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost/haproxy?stats" ]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+
+  haproxy-backup-2:
+    build:
+      context: ./haproxy-cluster # Use the consolidated build context
+      args:
+        KEEPALIVED_CONFIG: keepalived.backup2.conf # Pass the backup config file name
+    container_name: haproxy-backup-2
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    networks:
+      - app-network
+    depends_on:
+      web1: { condition: service_started }
+      web2: { condition: service_started }
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost/haproxy?stats" ]
+      interval: 5s
+      timeout: 2s
+      retries: 5
+
+networks:
+  app-network:
+    driver: bridge
+    # IP Address Management (IPAM) configures the private network for our containers.
+    ipam:
+      driver: default
+      config:
+        # Defines a specific subnet, allowing us to have predictable internal IP addresses.
+        - subnet: 192.168.100.0/24
