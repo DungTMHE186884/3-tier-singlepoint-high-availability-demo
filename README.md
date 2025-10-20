@@ -8,7 +8,8 @@ The architecture is composed of three main tiers:
 *   **Tier 2: Web Servers:** A pool of identical Node.js web servers that run the application logic. The active HAProxy instance distributes incoming requests across these servers.
 
  
-<img width="3000" alt="3-Tier HA Architecture" src="https://user-images.githubusercontent.com/10682972/211221370-1a872b7a-f7f8-483a-8671-be932c02117f.png" />
+<img width="3003" height="1173" alt="image" src="https://github.com/user-attachments/assets/da2cc8da-07d4-46f1-abeb-811fe08a9b98" />
+
 
 
 
@@ -103,3 +104,4 @@ You can test the failover mechanism by stopping the master load balancer.
     docker start haproxy-master
     ```
     
+
